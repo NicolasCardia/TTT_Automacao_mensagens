@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTT - Data Automation Factory | Automação WhatsApp</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .neon-glow { box-shadow: 0 0 15px rgba(6, 182, 212, 0.15); }
+        .neon-text-glow { text-shadow: 0 0 8px rgba(6, 182, 212, 0.4); }
+        .hidden { display: none !important; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-300 min-h-screen flex flex-col selection:bg-cyan-500/30">
+
+    <!-- ===================== TELA DE LOGIN / CADASTRO ===================== -->
+    <div id="authScreen" class="flex-1 flex items-center justify-center p-4">
+        <div class="bg-slate-900 rounded-2xl max-w-sm w-full p-6 space-y-4 border border-slate-800 neon-glow">
+            <div class="flex justify-center text-3xl font-black font-mono mb-2">
+                <span class="text-blue-400 neon-text-glow">T</span><span class="text-yellow-400">T</span><span class="text-red-400">T</span>
+            </div>
+            <p class="text-center text-xs text-slate-500 uppercase tracking-wider">Cada amigo conecta o próprio WhatsApp</p>
+
+            <div class="space-y-3 pt-2">
+                <div>
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Usuário</label>
+                    <input id="authUsername" type="text" placeholder="ex: joao_silva" class="w-full mt-1 p-2.5 text-sm bg-slate-950 border border-slate-700 rounded-xl focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 focus:outline-none text-slate-200 placeholder-slate-600 font-mono">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Senha</label>
+                    <input id="authPassword" type="password" placeholder="mínimo 6 caracteres" class="w-full mt-1 p-2.5 text-sm bg-slate-950 border border-slate-700 rounded-xl focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 focus:outline-none text-slate-200 placeholder-slate-600 font-mono">
+                </div>
+                <p id="authError" class="text-xs text-rose-400 font-mono min-h-[1rem]"></p>
+
+                <div class="flex gap-2">
+                    <button onclick="doLogin()" class="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold rounded-xl text-sm transition">Entrar</button>
+                    <button onclick="doRegister()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-400 font-bold rounded-xl text-sm transition">Criar conta</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== APLICAÇÃO ===================== -->
+    <div id="appScreen" class="hidden flex-1 flex flex-col">
+
+        <header class="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
+            <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="flex text-3xl font-black tracking-tighter select-none font-mono">
+                        <span class="text-blue-400 hover:scale-105 transition-transform inline-block neon-text-glow">T</span>
+                        <span class="text-yellow-400 hover:scale-105 transition-transform inline-block">T</span>
+                        <span class="text-red-400 hover:scale-105 transition-transform inline-block">T</span>
+                    </div>
+                    <div class="h-6 w-px bg-slate-700"></div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Data Automation Factory</span>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <span class="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                        <i data-lucide="user" class="w-3.5 h-3.5"></i>
+                        <span id="usernameLabel"></span>
+                    </span>
+                    <div id="connectionBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 text-amber-400 border border-amber-500/30 text-xs font-semibold shadow-[0_0_8px_rgba(251,191,36,0.15)]">
+                        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                        <span id="connectionText">Conectando ao backend...</span>
+                    </div>
+                    <button onclick="openQrModal()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-400 rounded-lg text-xs font-bold transition">
+                        <i data-lucide="qr-code" class="w-4 h-4"></i>
+                        <span>QR Code</span>
+                    </button>
+                    <button onclick="logout()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-rose-900/40 border border-slate-700 hover:border-rose-700/50 text-slate-400 hover:text-rose-400 rounded-lg text-xs font-bold transition" title="Sair">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Painel de Disparo (Esquerda) -->
+            <section class="lg:col-span-7 space-y-6">
+
+                <div class="bg-slate-900 rounded-2xl p-5 border border-slate-800 neon-glow">
+                    <div class="flex items-center justify-between mb-4">
+                        <label class="font-bold text-slate-200 flex items-center gap-2">
+                            <i data-lucide="users" class="w-4 h-4 text-cyan-400"></i>
+                            Selecione o Lote / Grupo
+                        </label>
+                        <button onclick="toggleGroupModal()" class="text-xs font-bold text-cyan-500 hover:text-cyan-300 flex items-center gap-1 transition-colors">
+                            <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Criar/Editar Grupos
+                        </button>
+                    </div>
+
+                    <select id="groupSelect" onchange="onGroupSelectChange()" class="w-full p-3 text-sm bg-slate-950 border border-slate-700 rounded-xl font-medium text-slate-300 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 focus:outline-none mb-3 appearance-none">
+                        <option value="">-- Selecione um grupo ou digite manualmente abaixo --</option>
+                        <option value="GERAL" class="font-bold text-cyan-400">🌟 GRUPO GERAL (Todos os Números)</option>
+                    </select>
+
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-slate-400">Destinatários do Envio</span>
+                        <span id="contactCount" class="text-xs font-semibold bg-slate-800 text-cyan-400 px-2.5 py-0.5 rounded-full border border-cyan-500/20">0 números</span>
+                    </div>
+                    <textarea
+                        id="numbersInput"
+                        rows="4"
+                        class="w-full p-3.5 text-sm bg-slate-950 border border-slate-700 rounded-xl focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 focus:outline-none transition font-mono resize-y text-emerald-400 placeholder-slate-600"
+                        placeholder="Cole os números aqui (um por linha) ou selecione um Grupo acima..."
+                        oninput="updateContactCount()"
+                    ></textarea>
+                </div>
+
+                <div class="bg-slate-900 rounded-2xl p-5 border border-slate-800 neon-glow">
+                    <div class="flex items-center justify-between mb-3">
+                        <label class="font-bold text-slate-200 flex items-center gap-2">
+                            <i data-lucide="message-square" class="w-4 h-4 text-fuchsia-400"></i>
+                            Mensagem do Disparo
+                        </label>
+                        <span id="charCount" class="text-xs text-slate-500">0 caracteres</span>
+                    </div>
+                    <textarea
+                        id="messageInput"
+                        rows="4"
+                        class="w-full p-3.5 text-sm bg-slate-950 border border-slate-700 rounded-xl focus:border-fuchsia-500 focus:ring-1 focus:ring-fuchsia-500 focus:outline-none transition resize-y text-slate-200 placeholder-slate-600 font-mono"
+                        placeholder="Digite a mensagem que será enviada para o grupo selecionado..."
+                        oninput="updateMessageCount()"
+                    ></textarea>
+
+                    <div class="mt-4 pt-4 border-t border-slate-800 flex flex-col gap-3">
+                        <div class="flex items-center gap-2 text-xs text-slate-400">
+                            <i data-lucide="shield-check" class="w-4 h-4 text-emerald-500"></i>
+                            <span>Delay de segurança ativo (3s a 7s) — reduz o risco de bloqueio do número</span>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3">
+                            <button
+                                id="sendBtn"
+                                onclick="startBatchSend()"
+                                class="px-6 py-3 bg-transparent border border-cyan-500 hover:bg-cyan-500 text-cyan-400 hover:text-slate-950 font-bold rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.2)] hover:shadow-[0_0_20px_rgba(6,182,212,0.6)] transition-all flex items-center justify-center gap-2 active:scale-95"
+                            >
+                                <i data-lucide="send" class="w-4 h-4"></i>
+                                Enviar Agora
+                            </button>
+
+                            <div class="h-8 w-px bg-slate-800"></div>
+
+                            <input type="datetime-local" id="scheduleDateTime" class="p-2.5 text-sm bg-slate-950 border border-slate-700 rounded-xl text-slate-200 focus:border-fuchsia-500 focus:ring-1 focus:ring-fuchsia-500 focus:outline-none">
+                            <button
+                                onclick="scheduleBatchSend()"
+                                class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-fuchsia-500/40 text-white font-bold rounded-xl text-xs transition flex items-center gap-2"
+                            >
+                                <i data-lucide="clock" class="w-4 h-4"></i> Agendar Envio
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- Painel de Status (Direita) -->
+            <section class="lg:col-span-5 space-y-6">
+
+                <div class="bg-slate-900 rounded-2xl p-5 border border-slate-800 neon-glow">
+                    <h3 class="font-bold text-slate-200 mb-4 flex items-center gap-2">
+                        <i data-lucide="activity" class="w-4 h-4 text-emerald-400"></i>
+                        Status da Campanha
+                    </h3>
+
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-end text-sm">
+                            <span class="text-slate-400 font-medium">Progresso</span>
+                            <span id="progressPercent" class="font-bold text-cyan-400 neon-text-glow">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-950 rounded-full h-3 overflow-hidden p-0.5 border border-slate-800">
+                            <div id="progressBar" class="bg-gradient-to-r from-cyan-500 via-fuchsia-500 to-emerald-400 h-full rounded-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3 mt-5">
+                        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center">
+                            <span class="text-xs text-slate-500 block mb-1 uppercase tracking-wider">Total</span>
+                            <span id="statTotal" class="text-lg font-bold text-slate-200">0</span>
+                        </div>
+                        <div class="bg-slate-950 p-3 rounded-xl border border-emerald-500/20 text-center shadow-[0_0_10px_rgba(16,185,129,0.05)]">
+                            <span class="text-xs text-emerald-500 block mb-1 uppercase tracking-wider">Sucessos</span>
+                            <span id="statSuccess" class="text-lg font-bold text-emerald-400">0</span>
+                        </div>
+                        <div class="bg-slate-950 p-3 rounded-xl border border-rose-500/20 text-center shadow-[0_0_10px_rgba(244,63,94,0.05)]">
+                            <span class="text-xs text-rose-500 block mb-1 uppercase tracking-wider">Falhas</span>
+                            <span id="statFail" class="text-lg font-bold text-rose-400">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-2xl p-5 border border-slate-800 neon-glow">
+                    <h3 class="font-bold text-slate-200 mb-3 flex items-center gap-2">
+                        <i data-lucide="calendar-clock" class="w-4 h-4 text-fuchsia-400"></i>
+                        Mensagens Agendadas
+                    </h3>
+                    <div id="schedulesList" class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                        <p class="text-xs text-slate-600 italic font-mono">Nenhum agendamento criado.</p>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-2xl p-5 border border-slate-800 neon-glow">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-slate-200 flex items-center gap-2">
+                            <i data-lucide="terminal" class="w-4 h-4 text-cyan-400"></i>
+                            Terminal de Execução
+                        </h3>
+                        <button onclick="clearLogs()" class="text-xs text-slate-500 hover:text-cyan-400 transition-colors">Limpar</button>
+                    </div>
+
+                    <div id="logsContainer" class="h-56 overflow-y-auto space-y-2 pr-1 font-mono text-xs">
+                        <div class="text-center text-slate-600 py-8 italic">
+                            Nenhum disparo inicializado. Aguardando comandos...
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Modal de Gestão de Grupos -->
+    <div id="groupModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 rounded-2xl max-w-lg w-full p-6 space-y-4 border border-slate-800 shadow-[0_0_30px_rgba(6,182,212,0.15)] relative">
+            <button onclick="toggleGroupModal()" class="absolute top-4 right-4 text-slate-500 hover:text-slate-300 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <h3 class="font-bold text-slate-200 text-lg flex items-center gap-2">
+                <i data-lucide="users" class="w-5 h-5 text-cyan-400"></i> Cadastrar Novo Lote
+            </h3>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Identificador do Lote</label>
+                    <input id="newGroupName" type="text" placeholder="Ex: Projeto_Migracao_W1" class="w-full mt-1 p-2.5 text-sm bg-slate-950 border border-slate-700 rounded-xl focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 focus:outline-none text-slate-200 placeholder-slate-600 font-mono">
+                </div>
+
+                <div>
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Base de Contatos (Um por linha)</label>
+                    <textarea id="newGroupNumbers" rows="4" placeholder="19999998888&#10;19988887777" class="w-full mt-1 p-2.5 text-sm bg-slate-950 border border-slate-700 rounded-xl font-mono text-emerald-400 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 focus:outline-none placeholder-slate-600"></textarea>
+                </div>
+
+                <button onclick="saveGroup()" class="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold rounded-xl text-sm transition shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+                    Salvar Base de Contatos
+                </button>
+            </div>
+
+            <hr class="border-slate-800 my-2">
+
+            <h4 class="font-bold text-xs text-slate-500 uppercase tracking-wider">Lotes Registrados</h4>
+            <div id="existingGroupsList" class="space-y-2 max-h-40 overflow-y-auto pr-1">
+                <p class="text-xs text-slate-600 italic font-mono">Consultando banco de dados...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal QR Code -->
+    <div id="qrModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 rounded-2xl max-w-sm w-full p-6 text-center space-y-4 border border-slate-800 shadow-[0_0_30px_rgba(6,182,212,0.15)] relative">
+            <button onclick="closeQrModal()" class="absolute top-4 right-4 text-slate-500 hover:text-slate-300">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="flex justify-center text-2xl font-black font-mono">
+                <span class="text-blue-400 neon-text-glow">T</span><span class="text-yellow-400">T</span><span class="text-red-400">T</span>
+            </div>
+            <h3 class="font-bold text-slate-200 text-lg">Autenticação WhatsApp</h3>
+
+            <div class="flex justify-center my-4">
+                <div class="p-3 bg-slate-950 border border-slate-700 rounded-xl">
+                    <img id="qrCodeImg" src="" alt="QR Code" class="w-44 h-44 rounded-lg hidden filter invert-[.8] hue-rotate-180">
+                    <div id="qrLoading" class="w-44 h-44 flex flex-col items-center justify-center text-slate-500 gap-2 font-mono">
+                        <i data-lucide="loader-2" class="w-8 h-8 animate-spin text-cyan-400"></i>
+                        <span class="text-xs font-medium">Gerando token...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // -----------------------------------------------------------------
+        // IMPORTANTE: troque para a URL pública do seu backend (Railway,
+        // Render, Fly.io, VPS...) antes de publicar no GitHub Pages.
+        // Localhost só funciona enquanto você testa na sua própria máquina.
+        // -----------------------------------------------------------------
+        const BACKEND_URL = 'http://localhost:3000';
+
+        let TOKEN = localStorage.getItem('ttt_token');
+        let USERNAME = localStorage.getItem('ttt_username');
+        let socket = null;
+
+        let cachedGroups = {};
+        let cachedGeral = [];
+
+        // --- AUTENTICAÇÃO ---
+        async function doLogin() {
+            const username = document.getElementById('authUsername').value.trim();
+            const password = document.getElementById('authPassword').value;
+            await authRequest('/api/auth/login', { username, password });
+        }
+
+        async function doRegister() {
+            const username = document.getElementById('authUsername').value.trim();
+            const password = document.getElementById('authPassword').value;
+            await authRequest('/api/auth/register', { username, password });
+        }
+
+        async function authRequest(endpoint, body) {
+            const errorEl = document.getElementById('authError');
+            errorEl.innerText = '';
+            try {
+                const res = await fetch(`${BACKEND_URL}${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (!res.ok) { errorEl.innerText = data.error || 'Erro ao autenticar.'; return; }
+
+                TOKEN = data.token;
+                USERNAME = data.username;
+                localStorage.setItem('ttt_token', TOKEN);
+                localStorage.setItem('ttt_username', USERNAME);
+                showApp();
+            } catch (e) {
+                errorEl.innerText = 'Não foi possível falar com o backend. Verifique se ele está no ar.';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('ttt_token');
+            localStorage.removeItem('ttt_username');
+            TOKEN = null;
+            USERNAME = null;
+            if (socket) socket.disconnect();
+            showAuth();
+        }
+
+        function showAuth() {
+            document.getElementById('appScreen').classList.add('hidden');
+            document.getElementById('authScreen').classList.remove('hidden');
+        }
+
+        function showApp() {
+            document.getElementById('authScreen').classList.add('hidden');
+            document.getElementById('appScreen').classList.remove('hidden');
+            document.getElementById('usernameLabel').innerText = USERNAME;
+            connectSocket();
+            fetchGroups();
+            fetchSchedules();
+        }
+
+        function authHeader() {
+            return { 'Authorization': `Bearer ${TOKEN}` };
+        }
+
+        // Wrapper de fetch que injeta o token e trata sessão expirada
+        async function apiFetch(url, options = {}) {
+            const opts = { ...options, headers: { ...(options.headers || {}), ...authHeader() } };
+            const res = await fetch(url, opts);
+            if (res.status === 401) {
+                logout();
+                throw new Error('Sessão expirada. Faça login novamente.');
+            }
+            return res;
+        }
+
+        // --- WEBSOCKET ---
+        function connectSocket() {
+            socket = io(BACKEND_URL, { auth: { token: TOKEN } });
+
+            socket.on('connect', () => updateConnectionBadge('connected', 'Servidor Conectado'));
+            socket.on('disconnect', () => updateConnectionBadge('error', 'Desconectado do Servidor'));
+            socket.on('connect_error', (err) => {
+                updateConnectionBadge('error', 'Erro de conexão');
+                if (err.message === 'Token inválido' || err.message === 'Token ausente') logout();
+            });
+
+            socket.on('status', (msg) => addLog(msg, 'info'));
+
+            socket.on('qr', (qrUrl) => {
+                document.getElementById('qrLoading').classList.add('hidden');
+                const img = document.getElementById('qrCodeImg');
+                img.src = qrUrl;
+                img.classList.remove('hidden');
+                openQrModal();
+            });
+
+            socket.on('ready', (msg) => {
+                updateConnectionBadge('whatsapp-ready', 'WhatsApp Autenticado');
+                closeQrModal();
+                addLog(msg, 'success');
+            });
+
+            socket.on('log', (data) => addLog(data.message, data.type));
+
+            socket.on('progress', (data) => {
+                document.getElementById('statTotal').innerText = data.total;
+                document.getElementById('statSuccess').innerText = data.successCount;
+                document.getElementById('statFail').innerText = data.failCount;
+
+                const percent = Math.round((data.current / data.total) * 100);
+                document.getElementById('progressBar').style.width = `${percent}%`;
+                document.getElementById('progressPercent').innerText = `${percent}%`;
+
+                if (data.current === data.total) fetchSchedules();
+            });
+        }
+
+        // --- GERENCIAMENTO DE GRUPOS ---
+        async function fetchGroups() {
+            try {
+                const res = await apiFetch(`${BACKEND_URL}/api/groups`);
+                const data = await res.json();
+                cachedGroups = data.groups || {};
+                cachedGeral = data.geral || [];
+                populateGroupSelect();
+                renderExistingGroupsList();
+            } catch (e) { console.error('Erro ao carregar grupos:', e); }
+        }
+
+        function populateGroupSelect() {
+            const select = document.getElementById('groupSelect');
+            select.innerHTML = `
+                <option value="">-- Selecione um grupo ou digite manualmente abaixo --</option>
+                <option value="GERAL" class="font-bold text-cyan-400">🌟 GRUPO GERAL (${cachedGeral.length} números)</option>
+            `;
+            Object.keys(cachedGroups).forEach(groupName => {
+                const count = cachedGroups[groupName].length;
+                select.innerHTML += `<option value="${groupName}">📁 ${groupName} (${count} números)</option>`;
+            });
+        }
+
+        function onGroupSelectChange() {
+            const selectedVal = document.getElementById('groupSelect').value;
+            const textarea = document.getElementById('numbersInput');
+            if (selectedVal === 'GERAL') {
+                textarea.value = cachedGeral.join('\n');
+            } else if (selectedVal && cachedGroups[selectedVal]) {
+                textarea.value = cachedGroups[selectedVal].join('\n');
+            }
+            updateContactCount();
+        }
+
+        async function saveGroup() {
+            const groupName = document.getElementById('newGroupName').value;
+            const rawNumbers = document.getElementById('newGroupNumbers').value.split('\n');
+
+            if (!groupName) { alert('Defina o identificador do lote.'); return; }
+
+            const res = await apiFetch(`${BACKEND_URL}/api/groups`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ groupName, numbers: rawNumbers })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                document.getElementById('newGroupName').value = '';
+                document.getElementById('newGroupNumbers').value = '';
+                fetchGroups();
+                alert(data.message);
+            } else {
+                alert(data.error);
+            }
+        }
+
+        async function deleteGroup(groupName) {
+            if (!confirm(`Confirmar exclusão da base "${groupName}"?`)) return;
+            const res = await apiFetch(`${BACKEND_URL}/api/groups/${encodeURIComponent(groupName)}`, { method: 'DELETE' });
+            if (res.ok) fetchGroups();
+        }
+
+        function renderExistingGroupsList() {
+            const listContainer = document.getElementById('existingGroupsList');
+            const groupNames = Object.keys(cachedGroups);
+
+            if (groupNames.length === 0) {
+                listContainer.innerHTML = '<p class="text-xs text-slate-600 italic font-mono">Nenhum lote customizado em base.</p>';
+                return;
+            }
+
+            listContainer.innerHTML = groupNames.map(name => `
+                <div class="flex items-center justify-between p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs transition hover:border-slate-700">
+                    <div>
+                        <span class="font-bold text-slate-300">${name}</span>
+                        <span class="text-cyan-600 ml-2 font-mono">(${cachedGroups[name].length} nums)</span>
+                    </div>
+                    <button onclick="deleteGroup('${name}')" class="text-rose-500 hover:text-rose-400 font-bold transition-colors">Excluir</button>
+                </div>
+            `).join('');
+        }
+
+        // --- DISPARO IMEDIATO ---
+        async function startBatchSend() {
+            const numbers = getNumbersFromInput();
+            const message = document.getElementById('messageInput').value.trim();
+
+            if (numbers.length === 0) { alert('A base de destinatários está vazia.'); return; }
+            if (!message) { alert('O payload da mensagem está vazio.'); return; }
+
+            const res = await apiFetch(`${BACKEND_URL}/api/send-batch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ numbers, message })
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.error);
+            } else {
+                addLog('Iniciando rotina de disparo em lote...', 'info');
+            }
+        }
+
+        // --- AGENDAMENTO ---
+        async function scheduleBatchSend() {
+            const numbers = getNumbersFromInput();
+            const message = document.getElementById('messageInput').value.trim();
+            const datetimeLocal = document.getElementById('scheduleDateTime').value;
+            const groupName = document.getElementById('groupSelect').value || null;
+
+            if (numbers.length === 0) { alert('A base de destinatários está vazia.'); return; }
+            if (!message) { alert('O payload da mensagem está vazio.'); return; }
+            if (!datetimeLocal) { alert('Escolha uma data e horário para o agendamento.'); return; }
+
+            const datetime = new Date(datetimeLocal).toISOString();
+
+            const res = await apiFetch(`${BACKEND_URL}/api/schedules`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ numbers, message, datetime, groupName })
+            });
+
+            const data = await res.json();
+            if (!res.ok) { alert(data.error); return; }
+
+            addLog(`Agendamento criado para ${new Date(datetime).toLocaleString('pt-BR')}`, 'info');
+            document.getElementById('scheduleDateTime').value = '';
+            fetchSchedules();
+        }
+
+        async function fetchSchedules() {
+            try {
+                const res = await apiFetch(`${BACKEND_URL}/api/schedules`);
+                const data = await res.json();
+                renderSchedules(data.schedules || []);
+            } catch (e) { console.error('Erro ao carregar agendamentos:', e); }
+        }
+
+        function renderSchedules(list) {
+            const container = document.getElementById('schedulesList');
+            if (list.length === 0) {
+                container.innerHTML = '<p class="text-xs text-slate-600 italic font-mono">Nenhum agendamento criado.</p>';
+                return;
+            }
+
+            container.innerHTML = list.slice().reverse().map(item => {
+                const dt = new Date(item.datetime).toLocaleString('pt-BR');
+                let badge = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+                if (item.status === 'enviado') badge = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                if (item.status === 'cancelado') badge = 'bg-slate-700/40 text-slate-500 border-slate-700';
+
+                return `
+                    <div class="p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-300">${dt}</span>
+                            <span class="px-2 py-0.5 rounded-full border ${badge} text-[10px] font-bold uppercase">${item.status}</span>
+                        </div>
+                        <p class="text-slate-500 mt-1 truncate">${escapeHtml(item.message)}</p>
+                        <p class="text-cyan-600 mt-1 font-mono">${item.numbers.length} destinatário(s)${item.groupName ? ` • ${escapeHtml(item.groupName)}` : ''}</p>
+                        ${item.status === 'pendente' ? `<button onclick="cancelSchedule('${item.id}')" class="mt-2 text-rose-500 hover:text-rose-400 font-bold text-[11px]">Cancelar</button>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function cancelSchedule(id) {
+            if (!confirm('Cancelar este agendamento?')) return;
+            const res = await apiFetch(`${BACKEND_URL}/api/schedules/${id}`, { method: 'DELETE' });
+            if (res.ok) fetchSchedules();
+        }
+
+        // --- UTILS ---
+        function getNumbersFromInput() {
+            const rawText = document.getElementById('numbersInput').value;
+            return rawText.split('\n').map(n => n.trim()).filter(n => n !== '');
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.innerText = str;
+            return div.innerHTML;
+        }
+
+        function updateContactCount() {
+            const numbers = getNumbersFromInput();
+            document.getElementById('contactCount').innerText = `${numbers.length} número${numbers.length !== 1 ? 's' : ''}`;
+        }
+
+        function updateMessageCount() {
+            const text = document.getElementById('messageInput').value;
+            document.getElementById('charCount').innerText = `${text.length} bytes (caracteres)`;
+        }
+
+        function updateConnectionBadge(state, text) {
+            const badge = document.getElementById('connectionBadge');
+            const textEl = document.getElementById('connectionText');
+            textEl.innerText = text;
+
+            if (state === 'whatsapp-ready') {
+                badge.className = "flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 text-emerald-400 border border-emerald-500/30 text-xs font-semibold shadow-[0_0_8px_rgba(16,185,129,0.15)]";
+                badge.querySelector('span').className = "w-2 h-2 rounded-full bg-emerald-400";
+            } else if (state === 'connected') {
+                badge.className = "flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 text-amber-400 border border-amber-500/30 text-xs font-semibold shadow-[0_0_8px_rgba(251,191,36,0.15)]";
+                badge.querySelector('span').className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+            } else if (state === 'error') {
+                badge.className = "flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 text-rose-400 border border-rose-500/30 text-xs font-semibold shadow-[0_0_8px_rgba(244,63,94,0.15)]";
+                badge.querySelector('span').className = "w-2 h-2 rounded-full bg-rose-500";
+            }
+        }
+
+        function addLog(msg, type = 'info') {
+            const container = document.getElementById('logsContainer');
+            if (container.querySelector('.italic')) container.innerHTML = '';
+
+            const time = new Date().toLocaleTimeString('pt-BR');
+            const div = document.createElement('div');
+
+            let colorClass = "bg-slate-950 border-slate-800 text-slate-300";
+            let icon = ">>";
+            if (type === 'success') { colorClass = "bg-emerald-950/30 border-emerald-900/50 text-emerald-400"; icon = "OK"; }
+            if (type === 'error') { colorClass = "bg-rose-950/30 border-rose-900/50 text-rose-400"; icon = "ERR"; }
+            if (type === 'info') { colorClass = "bg-cyan-950/20 border-cyan-900/30 text-cyan-400"; icon = "SYS"; }
+
+            div.className = `p-2 rounded-lg text-xs border ${colorClass} font-mono flex gap-2`;
+            div.innerHTML = `<span class="text-slate-500 select-none">[${time}]</span> <span class="font-bold opacity-80">${icon}</span> <span>${escapeHtml(msg)}</span>`;
+            container.prepend(div);
+        }
+
+        function clearLogs() {
+            document.getElementById('logsContainer').innerHTML = '<div class="text-center text-slate-600 py-8 italic font-mono">Terminal limpo. Aguardando comandos...</div>';
+        }
+
+        function toggleGroupModal() { document.getElementById('groupModal').classList.toggle('hidden'); }
+        function openQrModal() { document.getElementById('qrModal').classList.remove('hidden'); }
+        function closeQrModal() { document.getElementById('qrModal').classList.add('hidden'); }
+
+        // Inicialização: se já existe token salvo, tenta ir direto pro app
+        if (TOKEN && USERNAME) {
+            showApp();
+        } else {
+            showAuth();
+        }
+    </script>
+</body>
+</html>
