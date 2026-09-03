@@ -133,6 +133,20 @@
                         oninput="updateMessageCount()"
                     ></textarea>
 
+                    <div class="mt-3 flex items-center gap-3">
+                        <label class="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-400 rounded-lg text-xs font-bold transition cursor-pointer">
+                            <i data-lucide="image-plus" class="w-4 h-4"></i>
+                            <span>Anexar imagem</span>
+                            <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="onImageSelected(event)">
+                        </label>
+                        <div id="imagePreviewWrap" class="hidden items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg pl-2 pr-1 py-1">
+                            <img id="imagePreview" src="" class="w-8 h-8 object-cover rounded">
+                            <button onclick="removeImage()" class="text-slate-500 hover:text-rose-400 p-1" title="Remover imagem">
+                                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="mt-4 pt-4 border-t border-slate-800 flex flex-col gap-3">
                         <div class="flex items-center gap-2 text-xs text-slate-400">
                             <i data-lucide="shield-check" class="w-4 h-4 text-emerald-500"></i>
@@ -304,6 +318,34 @@
 
         let cachedGroups = {};
         let cachedGeral = [];
+        let selectedImageBase64 = null;
+
+        function onImageSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Imagem muito grande. Use um arquivo de até 5MB.');
+                event.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = () => {
+                selectedImageBase64 = reader.result; // data:image/...;base64,...
+                document.getElementById('imagePreview').src = selectedImageBase64;
+                document.getElementById('imagePreviewWrap').classList.remove('hidden');
+                document.getElementById('imagePreviewWrap').classList.add('flex');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeImage() {
+            selectedImageBase64 = null;
+            document.getElementById('imageInput').value = '';
+            document.getElementById('imagePreviewWrap').classList.add('hidden');
+            document.getElementById('imagePreviewWrap').classList.remove('flex');
+        }
 
         // --- AUTENTICAÇÃO ---
         async function doLogin() {
@@ -515,7 +557,7 @@
             const res = await apiFetch(`${BACKEND_URL}/api/send-batch`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ numbers, message })
+                body: JSON.stringify({ numbers, message, image: selectedImageBase64 })
             });
 
             const data = await res.json();
@@ -523,6 +565,7 @@
                 alert(data.error);
             } else {
                 addLog('Iniciando rotina de disparo em lote...', 'info');
+                removeImage();
             }
         }
 
@@ -542,7 +585,7 @@
             const res = await apiFetch(`${BACKEND_URL}/api/schedules`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ numbers, message, datetime, groupName })
+                body: JSON.stringify({ numbers, message, datetime, groupName, image: selectedImageBase64 })
             });
 
             const data = await res.json();
@@ -550,6 +593,7 @@
 
             addLog(`Agendamento criado para ${new Date(datetime).toLocaleString('pt-BR')}`, 'info');
             document.getElementById('scheduleDateTime').value = '';
+            removeImage();
             fetchSchedules();
         }
 
